@@ -5,8 +5,8 @@ import cv2
 from PIL import Image, ImageTk
 import datetime
 import random
-import win32print
-
+import win32print, win32api
+import requests, json
 
 class StartPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -22,7 +22,7 @@ class StartPage(tk.Frame):
         start_button = tk.Button(self, text="Start!", font=("Arial", 24), command=lambda: controller.show_frame("CapturePage"), bg="white")
         start_button.grid(row=1, column=0, pady=50)
 
-        version_info = tk.Label(self, text="Version 1.0 | Developed by. ZEROCOKE", font=("Arial", 20), bg="light sky blue", anchor="e")
+        version_info = tk.Label(self, text="Release.0.1_beta | Frontend by. ZEROCOKE | Backend by. suk", font=("Arial", 15), bg="light sky blue", anchor="e")
         version_info.place(relx=1, rely=0, x=-10, y=10, anchor="ne")
 
         admin_button = tk.Button(self, text="Admin", font=("Arial", 18), command=self.admin_popup, bg="white")
@@ -30,7 +30,7 @@ class StartPage(tk.Frame):
 
     def admin_popup(self):
         password = simpledialog.askstring("Password", "Enter Admin Password:", show='*')
-        if password == "admin123":  # 기본 비밀번호는 "admin123"
+        if password == "zerocoke":
             AdminSettings()
         else:
             messagebox.showerror("Error", "Incorrect Password!")
@@ -39,55 +39,50 @@ class AdminSettings(tk.Toplevel):
     def __init__(self):
         super().__init__()
         self.title("Admin Settings")
-
-        available_cameras = self.get_available_cameras()
-        self.camera_label = tk.Label(self, text="Select Camera Device:")
-        self.camera_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
-
-        self.camera_var = tk.StringVar(self)
-        self.camera_dropdown = tk.OptionMenu(self, self.camera_var, *available_cameras)
-        self.camera_dropdown.grid(row=0, column=1, padx=10, pady=10)
-
-        available_printers = self.get_available_printers()
+        
+        available_printers = [printer[2] for printer in win32print.EnumPrinters(2)]
         self.printer_label = tk.Label(self, text="Select Printer Device:")
-        self.printer_label.grid(row=1, column=0, padx=10, pady=10, sticky="w")
-
+        self.printer_label.grid(row=3, column=0, padx=10, pady=10, sticky="w")
+    
         self.printer_var = tk.StringVar(self)
+        self.printer_var.set(MainApp.printer_device)
         self.printer_dropdown = tk.OptionMenu(self, self.printer_var, *available_printers)
-        self.printer_dropdown.grid(row=1, column=1, padx=10, pady=10)
+        self.printer_dropdown.grid(row=3, column=1, padx=10, pady=10)
 
-        self.password_label = tk.Label(self, text="Change Admin Password:")
-        self.password_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
+        self.current_password_label = tk.Label(self, text="Current Password:")
+        self.current_password_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        
+        self.current_password_entry = tk.Entry(self, show="*")
+        self.current_password_entry.grid(row=0, column=1, padx=10, pady=10)
 
-        self.password_entry = tk.Entry(self, show="*")
-        self.password_entry.grid(row=2, column=1, padx=10, pady=10)
+        self.new_password_label = tk.Label(self, text="New Password:")
+        self.new_password_label.grid(row=1, column=0, padx=10, pady=10, sticky="w")
 
+        self.new_password_entry = tk.Entry(self, show="*")
+        self.new_password_entry.grid(row=1, column=1, padx=10, pady=10)
+        
         self.server_label = tk.Label(self, text="Server Address:")
-        self.server_label.grid(row=3, column=0, padx=10, pady=10, sticky="w")
+        self.server_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
 
         self.server_entry = tk.Entry(self)
-        self.server_entry.grid(row=3, column=1, padx=10, pady=10)
+        self.server_entry.grid(row=2, column=1, padx=10, pady=10)
+        self.server_entry.insert(0, MainApp.server_address)
 
         self.save_button = tk.Button(self, text="Save", command=self.save_settings)
-        self.save_button.grid(row=4, column=0, columnspan=2, pady=20)
-
-    def get_available_cameras(self):
-        index = 0
-        arr = []
-        while True:
-            cap = cv2.VideoCapture(index)
-            if not cap.read()[0]:
-                break
-            else:
-                arr.append(f"Camera {index}")
-            cap.release()
-            index += 1
-        return arr
-
-    def get_available_printers(self):
-        return [printer[2] for printer in win32print.EnumPrinters(2)]
+        self.save_button.grid(row=3, column=0, columnspan=2, pady=20)
 
     def save_settings(self):
+        MainApp.printer_device = self.printer_var.get()
+        current_password = self.current_password_entry.get()
+        new_password = self.new_password_entry.get()
+        if current_password and new_password:
+            if current_password == MainApp.admin_password:
+                MainApp.admin_password = new_password  
+            else:
+                messagebox.showerror("Error", "Incorrect Current Password!")
+                return
+
+        MainApp.server_address = self.server_entry.get()
         messagebox.showinfo("Info", "Settings saved successfully!")
 
 class CapturePage(tk.Frame):
@@ -106,7 +101,7 @@ class CapturePage(tk.Frame):
         self.preview_label = tk.Label(self, bg="black")
         self.preview_label.grid(row=0, column=0, pady=50, padx=150, sticky="nsew")
 
-        self.info_label = tk.Label(self, text="사진은 총 3번 찍어요. 찰칵을 눌러주세요!", font=("Arial", 24), bg="light pink", fg="black")
+        self.info_label = tk.Label(self, text="사진은 총 4번 찍어요. 찰칵을 눌러주세요!", font=("Arial", 24), bg="light pink", fg="black")
         self.info_label.grid(row=1, column=0, pady=(0, 15))
 
         self.capture_button = tk.Button(self, text="찰칵!", font=("Arial", 24), command=self.start_countdown, bg="white")
@@ -149,8 +144,43 @@ class CapturePage(tk.Frame):
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             filename = f'DYHS_PHOTOBOX_{timestamp}.jpg'
             cv2.imwrite(filename, frame)
+            self.images.append(filename)
             self.capture_count += 1
+            if self.capture_count == 3:
+                self.send_images_to_server()
+                self.controller.show_frame("StartPage")
 
+    def send_images_to_server(self):
+        encoded_images = [self.encode_image_to_base64(image_path) for image_path in self.images]
+        payload = {
+            "images": encoded_images
+        }
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(MainApp.server_address, data=json.dumps(payload), headers=headers)
+        if response.status_code == 200:
+            received_image = response.json().get("image")
+
+class PrintPage(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent, bg="white")
+        
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        self.preview_label = tk.Label(self, bg="white")
+        self.preview_label.grid(row=0, column=0, pady=30)
+
+        self.print_button = tk.Button(self, text="print!", font=("Arial", 24), command=self.print_image, bg="white")
+        self.print_button.grid(row=1, column=0, pady=20)
+
+    def load_image(self, image_path):
+        image = Image.open(image_path)
+        self.photo = ImageTk.PhotoImage(image)
+        self.preview_label.config(image=self.photo)
+
+    def print_image(self):
+         win32api.ShellExecute(0, "print", "received_image.jpg", None, ".", 0)
 
 class MainApp(tk.Tk):
     def __init__(self):
@@ -173,6 +203,10 @@ class MainApp(tk.Tk):
     def show_frame(self, page_name):
         frame = self.frames[page_name]
         frame.tkraise()
+
+    admin_password = "zerocoke"
+    server_address = "http://default_server_address.com"
+    printer_device = win32print.GetDefaultPrinter()
 
 
 app = MainApp()
